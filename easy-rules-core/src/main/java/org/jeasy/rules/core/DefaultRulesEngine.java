@@ -80,7 +80,6 @@ public final class DefaultRulesEngine extends AbstractRulesEngine {
             return;
         }
         logAll(rules, facts);
-        LOGGER.trace("Rules evaluation started");
         for (Rule rule : rules) {
             final String name = rule.getName();
             final int priority = rule.getPriority();
@@ -167,6 +166,7 @@ public final class DefaultRulesEngine extends AbstractRulesEngine {
             factsMessage.append(String.format("%n%s", fact));
         }
 
+        factsMessage.append(String.format("%nRules evaluation started"));
         LOGGER.trace("{}{}{}", logMessage, rulesMessage, factsMessage);
     }
     /**
