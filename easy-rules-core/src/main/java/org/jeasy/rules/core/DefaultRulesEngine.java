@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- *  Copyright (c) 2021, Mahmoud Ben Hassine (mahmoud.benhassine@icloud.com)
+ *  Copyright (c) 2020, Mahmoud Ben Hassine (mahmoud.benhassine@icloud.com)
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
  *  of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Default {@link RulesEngine} implementation.
@@ -66,6 +67,8 @@ public final class DefaultRulesEngine extends AbstractRulesEngine {
 
     @Override
     public void fire(Rules rules, Facts facts) {
+        Objects.requireNonNull(rules, "Rules are not allowed to be null.");
+        Objects.requireNonNull(facts, "Facts are not allowed to be null.");
         triggerListenersBeforeRules(rules, facts);
         doFire(rules, facts);
         triggerListenersAfterRules(rules, facts);
@@ -76,86 +79,122 @@ public final class DefaultRulesEngine extends AbstractRulesEngine {
             LOGGER.warn("No rules registered! Nothing to apply");
             return;
         }
-        logEngineParameters();
-        log(rules);
-        log(facts);
-        LOGGER.debug("Rules evaluation started");
+        logAll(rules, facts);
+        LOGGER.trace("Rules evaluation started");
         for (Rule rule : rules) {
             final String name = rule.getName();
             final int priority = rule.getPriority();
             if (priority > parameters.getPriorityThreshold()) {
-                LOGGER.debug("Rule priority threshold ({}) exceeded at rule '{}' with priority={}, next rules will be skipped",
+                LOGGER.trace("Rule priority threshold ({}) exceeded at rule '{}' with priority={}, next rules will be skipped",
                         parameters.getPriorityThreshold(), name, priority);
                 break;
             }
             if (!shouldBeEvaluated(rule, facts)) {
-                LOGGER.debug("Rule '{}' has been skipped before being evaluated", name);
+                LOGGER.trace("Rule '{}' has been skipped before being evaluated", name);
                 continue;
             }
             boolean evaluationResult = false;
             try {
                 evaluationResult = rule.evaluate(facts);
             } catch (RuntimeException exception) {
-                LOGGER.error("Rule '" + name + "' evaluated with error", exception);
+                LOGGER.error("Rule '{}' evaluated with error", name, exception);
                 triggerListenersOnEvaluationError(rule, facts, exception);
                 // give the option to either skip next rules on evaluation error or continue by considering the evaluation error as false
                 if (parameters.isSkipOnFirstNonTriggeredRule()) {
-                    LOGGER.debug("Next rules will be skipped since parameter skipOnFirstNonTriggeredRule is set");
+                    LOGGER.trace("Next rules will be skipped since parameter skipOnFirstNonTriggeredRule is set");
                     break;
                 }
             }
             if (evaluationResult) {
-                LOGGER.debug("Rule '{}' triggered", name);
+                LOGGER.trace("Rule '{}' triggered", name);
                 triggerListenersAfterEvaluate(rule, facts, true);
                 try {
                     triggerListenersBeforeExecute(rule, facts);
                     rule.execute(facts);
-                    LOGGER.debug("Rule '{}' performed successfully", name);
+                    LOGGER.trace("Rule '{}' performed successfully", name);
                     triggerListenersOnSuccess(rule, facts);
                     if (parameters.isSkipOnFirstAppliedRule()) {
-                        LOGGER.debug("Next rules will be skipped since parameter skipOnFirstAppliedRule is set");
+                        LOGGER.trace("Next rules will be skipped since parameter skipOnFirstAppliedRule is set");
                         break;
                     }
                 } catch (Exception exception) {
-                    LOGGER.error("Rule '" + name + "' performed with error", exception);
+                    LOGGER.error("Rule '{}' performed with error", name, exception);
                     triggerListenersOnFailure(rule, exception, facts);
                     if (parameters.isSkipOnFirstFailedRule()) {
-                        LOGGER.debug("Next rules will be skipped since parameter skipOnFirstFailedRule is set");
+                        LOGGER.trace("Next rules will be skipped since parameter skipOnFirstFailedRule is set");
                         break;
                     }
                 }
             } else {
-                LOGGER.debug("Rule '{}' has been evaluated to false, it has not been executed", name);
+                LOGGER.trace("Rule '{}' has been evaluated to false, it has not been executed", name);
                 triggerListenersAfterEvaluate(rule, facts, false);
                 if (parameters.isSkipOnFirstNonTriggeredRule()) {
-                    LOGGER.debug("Next rules will be skipped since parameter skipOnFirstNonTriggeredRule is set");
+                    LOGGER.trace("Next rules will be skipped since parameter skipOnFirstNonTriggeredRule is set");
                     break;
                 }
             }
         }
     }
 
+    /**
+     * @deprecated In case of accepting PR, a remove of this method need to be done
+     */
+    @Deprecated
     private void logEngineParameters() {
-        LOGGER.debug("{}", parameters);
+        LOGGER.trace("{}", parameters);
     }
 
-    private void log(Rules rules) {
-        LOGGER.debug("Registered rules:");
+    /**
+     * Method using all known information to construct a single log entry on Level trace.
+     * <p>
+     * This method will iterate over the provided {@link Rules} and {@link Facts} building a full log message with
+     * the provided {@link RulesEngineParameters}. The message is constructed using {@link StringBuilder}.</p>
+     *
+     * @param rules Provided {@link Rules} to handle by the engine
+     * @param facts Provided {@link Facts}
+     */
+    void logAll(Rules rules, Facts facts) {
+        String logMessage  = String.format("%nEngine parameters: %n%s%n", parameters);
+        StringBuilder rulesMessage = new StringBuilder("Registered rules:");
+        StringBuilder factsMessage = new StringBuilder("Known facts:");
+
         for (Rule rule : rules) {
-            LOGGER.debug("Rule { name = '{}', description = '{}', priority = '{}'}",
+            rulesMessage.append(String.format("%nRule { name = '%s', description = '%s', priority = '%s'}%n",
+                    rule.getName(), rule.getDescription(), rule.getPriority()));
+        }
+
+        for (Fact<?> fact : facts) {
+            factsMessage.append(String.format("%n%s", fact));
+        }
+
+        LOGGER.trace("{}{}{}", logMessage, rulesMessage, factsMessage);
+    }
+    /**
+     * @deprecated In case of accepting PR, a remove of this method need to be done
+     */
+    @Deprecated
+    private void log(Rules rules) {
+        LOGGER.trace("Registered rules:");
+        for (Rule rule : rules) {
+            LOGGER.trace("Rule { name = '{}', description = '{}', priority = '{}'}",
                     rule.getName(), rule.getDescription(), rule.getPriority());
         }
     }
-
+    /**
+     * @deprecated In case of accepting PR, a remove of this method need to be done
+     */
+    @Deprecated
     private void log(Facts facts) {
-        LOGGER.debug("Known facts:");
+        LOGGER.trace("Known facts:");
         for (Fact<?> fact : facts) {
-            LOGGER.debug("{}", fact);
+            LOGGER.trace("{}", fact);
         }
     }
 
     @Override
     public Map<Rule, Boolean> check(Rules rules, Facts facts) {
+        Objects.requireNonNull(rules, "Rules are not allowed to be null.");
+        Objects.requireNonNull(facts, "Facts are not allowed to be null.");
         triggerListenersBeforeRules(rules, facts);
         Map<Rule, Boolean> result = doCheck(rules, facts);
         triggerListenersAfterRules(rules, facts);
@@ -163,7 +202,7 @@ public final class DefaultRulesEngine extends AbstractRulesEngine {
     }
 
     private Map<Rule, Boolean> doCheck(Rules rules, Facts facts) {
-        LOGGER.debug("Checking rules");
+        LOGGER.trace("Checking rules");
         Map<Rule, Boolean> result = new HashMap<>();
         for (Rule rule : rules) {
             if (shouldBeEvaluated(rule, facts)) {

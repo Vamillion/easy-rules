@@ -77,12 +77,12 @@ public final class InferenceRulesEngine extends AbstractRulesEngine {
         Objects.requireNonNull(facts, "Facts must not be null");
         Set<Rule> selectedRules;
         do {
-            LOGGER.debug("Selecting candidate rules based on the following facts: {}", facts);
+            LOGGER.trace("Selecting candidate rules based on the following facts: {}", facts);
             selectedRules = selectCandidates(rules, facts);
             if (!selectedRules.isEmpty()) {
                 delegate.fire(new Rules(selectedRules), facts);
             } else {
-                LOGGER.debug("No candidate rules found for facts: {}", facts);
+                LOGGER.trace("No candidate rules found for facts: {}", facts);
             }
         } while (!selectedRules.isEmpty());
     }
